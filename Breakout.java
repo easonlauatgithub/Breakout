@@ -30,7 +30,7 @@ public class Breakout extends GraphicsProgram {
 	private static final int PADDLE_HEIGHT = 10;
 
 /** Offset of the paddle up from the bottom */
-	private static final int PADDLE_Y_OFFSET = 30;
+	private static final int PADDLE_Y_OFFSET = 100;
 
 /** Number of bricks per row */
 	private static final int NBRICKS_PER_ROW = 10;
@@ -55,27 +55,45 @@ public class Breakout extends GraphicsProgram {
 	private static final int BRICK_Y_OFFSET = 70;
 
 /** Number of turns */
-	private static final int NTURNS = 3;
+	private static final int NTURNS = 99;
 
 /* Method: run() */
 /** Runs the Breakout program. */
 	public void run() {
 		/* You fill this in, along with any subsidiary methods */
+		//Setup
 		setUpBricks();
 		setUpPaddle();
-		setUpBall();		
-
-		while(RemainTurns > 0 && RemainBricks > 0){
-			pause(speed);
-			ballMoving();
+		setUpBall();
+		setUpScoreLabel();
+		gameSpeed = 10;
+		isPlaying = true;
+		//Start to play
+		while(isPlaying){
+			pause(gameSpeed);
+			ballKeepMoving();
 			ballCollideWithBorder();
-			ballCollideWithBottom();
 			ballCollideWithObject();
+			updateScore();
+			isPlaying = RemainTurns > 0 && RemainBricks > 0;
 		}
+		//Win or lose
 		endGame();
 	}
 	
-	private int speed = 10;
+	private Boolean isPlaying;
+	
+	private int gameSpeed;
+	
+	private double xCollision, yCollision;
+	
+	private int counterPadelHit = 0;
+	
+	private int score = 0;
+	
+	private GLabel labelScore;
+	
+	private AudioClip bounceClip = MediaTools.loadAudioClip("bounce.au");
 	
 	private int RemainTurns = NTURNS;
 	
@@ -90,7 +108,7 @@ public class Breakout extends GraphicsProgram {
 	private GRect paddle;
 
 	RandomGenerator rgen = RandomGenerator.getInstance();
-	
+
 	private void endGame(){
 		remove(ball);
 		GLabel glabel;
@@ -105,26 +123,85 @@ public class Breakout extends GraphicsProgram {
 		add(glabel);
 	}
 	
-	//About Ball
+	//About Score	
+	private void setUpScoreLabel(){
+		labelScore = new GLabel("Score:"+score);
+		labelScore.setLocation(WIDTH/2 - labelScore.getWidth()/2, HEIGHT - 0*labelScore.getHeight());
+		add(labelScore);		
+	}
+	
+	private void updateScore(){
+		if(collider != null){
+			Color color = collider.getColor();
+			int colorCode = color.hashCode();
+			switch(colorCode){
+				case -65536://RED
+					score += 25;
+					break;
+				case -14336://ORANGE
+					score += 20;
+					break;
+				case -256://YELLOW
+					score += 15;
+					break;
+				case -16711681://green
+					score += 10;
+					break;
+				case -16711936://cyan
+					score += 5;
+					break;
+				default://hit paddle
+					score += 0;
+			}
+			labelScore.setLabel("Score:"+score);			
+		}
+	}
+	
+	//About Ball Collision
+	private void ballCollisionSound(){
+		bounceClip.play(); 
+	}
+	
 	private void ballCollideWithObject(){
 		collider = getCollidingObject();
 		if(collider != null){
-			//println("collider:"+obj+" at("+x+","+y+")");
-			println("collider:"+collider);
-
+			ballCollisionSound();
 			if(collider.equals(paddle)){
-				vy = -vy;
-				//Prevent ball from gluing to paddle
-				ball.setLocation(ball.getX(), ball.getY()-PADDLE_HEIGHT-2*BALL_RADIUS);
+				ballCollideWithPaddle();
 			}else{ //collide with bricks
-				remove(collider);
-				RemainBricks--;
-				vy = -vy;
-			}			
+				ballCollideWithBrick();
+			}
 		}
 	}
 
+	private void ballCollideWithPaddle() {
+		vy = -vy;
+		//Prevent ball from gluing to paddle
+		//i.e. Move the ball up by the length of ball diameter and paddle height
+		ball.setLocation(ball.getX(), ball.getY()-PADDLE_HEIGHT-2*BALL_RADIUS);
+		//double vx if hit by the sides of paddle
+		//i.e. collision point y coordinate is between upper and lower bounds of paddle
+		double yPaddleTopAdjustment = 3;
+		double yPaddleTop = HEIGHT - PADDLE_Y_OFFSET + yPaddleTopAdjustment;
+		double yPaddleBottom = HEIGHT - PADDLE_Y_OFFSET + PADDLE_HEIGHT;
+		if (yCollision>yPaddleTop && yCollision<yPaddleBottom){
+			vx = -vx;
+		}
+		//double vx after seventh hit
+		counterPadelHit++;
+		if(counterPadelHit==7){
+			vx = vx * 2;
+		}
+	}
+
+	private void ballCollideWithBrick() {
+		remove(collider);
+		vy = -vy;
+		RemainBricks--;		
+	}
+	
 	/** Return null or collided object, i.e. brick or paddle */
+	
 	private GObject getCollidingObject(){
 		GObject obj = null;
 		double x = 0, y = 0;
@@ -148,36 +225,40 @@ public class Breakout extends GraphicsProgram {
 			y = ball.getY()+2*BALL_RADIUS;
 			obj = getElementAt(x, y); 
 		}
+		getCollisionPoint(x,y);
 		return obj;
 	}
+	
+	private void getCollisionPoint(double x, double y){
+		xCollision = x; 
+		yCollision = y;
+	}
+	
 	
 	private void ballCollideWithBorder(){
 		double x = ball.getX();
 		double y = ball.getY();
 		if(x<0 || x>WIDTH-2*BALL_RADIUS){ //hit right, left border, bounce back
+			ballCollisionSound();
 			vx = -vx;
 		}
 		if(y<0){ //hit top border, bounce back
+			ballCollisionSound();
 			vy = -vy;
+		}
+		if(y>HEIGHT-2*BALL_RADIUS){ //hit down border, reduce one turn
+			ballCollideWithBottom();
 		}
 	}
 	
 	private void ballCollideWithBottom(){
-		double y = ball.getY();
-		if(y>HEIGHT-2*BALL_RADIUS){ //hit down border, reduce one turn
-			//vy = -vy;			
-			RemainTurns--;
-			remove(ball);
-			setUpBall();
-		}
+		//vy = -vy;			
+		RemainTurns--;
+		remove(ball);
+		setUpBall();
 	}
 	
-	private void ballMoving(){
-		double x = ball.getX()+vx;
-		double y = ball.getY()+vy;
-		ball.setLocation(x, y);
-	}
-	
+	//About Ball
 	private void setUpBall(){
 		double xPos = WIDTH /2 - BALL_RADIUS;
 		double yPos = HEIGHT /2 - BALL_RADIUS;
@@ -190,6 +271,12 @@ public class Breakout extends GraphicsProgram {
 		vx = rgen.nextDouble(1.0, 3.0);
 		if (rgen.nextBoolean(0.5)) vx = -vx;
 		//nextDouble(-3.0, +3.0) which might generate -1~1, a ball going more or less straight down
+	}
+	
+	private void ballKeepMoving(){
+		double x = ball.getX()+vx;
+		double y = ball.getY()+vy;
+		ball.setLocation(x, y);
 	}
 	
 	//About Paddle

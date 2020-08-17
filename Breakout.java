@@ -55,7 +55,7 @@ public class Breakout extends GraphicsProgram {
 	private static final int BRICK_Y_OFFSET = 70;
 
 /** Number of turns */
-	private static final int NTURNS = 99;
+	private static final int NTURNS = 3;
 
 /* Method: run() */
 /** Runs the Breakout program. */
@@ -168,6 +168,8 @@ public class Breakout extends GraphicsProgram {
 			ballCollisionSound();
 			if(collider.equals(paddle)){
 				ballCollideWithPaddle();
+			}else if(collider.equals(labelScore)){
+				//not doing anything
 			}else{ //collide with bricks
 				ballCollideWithBrick();
 			}
@@ -266,6 +268,7 @@ public class Breakout extends GraphicsProgram {
 		ball = new GOval(xPos, yPos, BALL_RADIUS*2, BALL_RADIUS*2);
 		ball.setFilled(true);
 		add(ball);
+		
 		vy = 3;
 		//y values in Java increase as you move down the screen)
 		vx = rgen.nextDouble(1.0, 3.0);
@@ -274,9 +277,7 @@ public class Breakout extends GraphicsProgram {
 	}
 	
 	private void ballKeepMoving(){
-		double x = ball.getX()+vx;
-		double y = ball.getY()+vy;
-		ball.setLocation(x, y);
+		ball.move(vx, vy);
 	}
 	
 	//About Paddle
